@@ -373,8 +373,11 @@ function ImagenSettingsCard({ scope, t }: Props) {
 
 /** Register the family plugin card; slot lifecycle is fiber-owned. */
 export function installPluginCard(ctx: ClientContext, t: Translate): void {
-  const binder = (ctx as unknown as { webUiSettings?: { bind<S>(spec: { namespace: string }): SettingsScope<S> } }).webUiSettings
-    ?? (ctx as unknown as { settingsScope?: { bind<S>(spec: { namespace: string }): SettingsScope<S> } }).settingsScope
+  // Access both services through ctx.get: cordis guards direct property access
+  // with "cannot get property without inject", and webUiSettings is optional.
+  const webUi = ctx.get('webUiSettings') as { bind<S>(spec: { namespace: string }): SettingsScope<S> } | undefined
+  const official = ctx.get('settingsScope') as { bind<S>(spec: { namespace: string }): SettingsScope<S> } | undefined
+  const binder = webUi ?? official
   if (binder === undefined) return
   const scope = binder.bind<ImagenSettingsDraft>({ namespace: 'imagen' })
   ctx.slots.inject('web-ui.plugin.item', () => ctx.slots.register({

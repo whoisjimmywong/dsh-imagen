@@ -499,5 +499,10 @@ export function apply(ctx: ClientContext): void {
       ),
     }),
   }, ImagenCard))
-  installPluginCard(ctx, t as (key: string) => string)
+  try {
+    installPluginCard(ctx, t as (key: string) => string)
+  } catch (error) {
+    // Wiring failures must never fail the shell boot; log and continue.
+    console.error('[dsh-imagen] settings card skipped:', error)
+  }
 }
