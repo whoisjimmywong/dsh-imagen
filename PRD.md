@@ -1,6 +1,6 @@
 # DSH 生图插件（dsh-imagen）— 产品需求与交付记录
 
-> 状态：**v0.1 已交付**（2026-08-17）。需求经用户确认后完成实现、构建、单测与冒烟验证；未重启 DSH Host。调研期间下载的参考材料（dsh-image-gen 源码、dsh-draw-router README）仅作本地研究用，**不随仓库发布**（见 `.gitignore` 的 `_ref/`、`_ref2/`）。
+> 状态：**v0.1 已交付**（2026-08-17）。需求经用户确认后完成实现、构建、单测与冒烟验证；未重启 DSH Host。调研期间下载的参考材料（dsh-image-gen 源码、dsh-draw-router README）仅供本地研究，未随仓库发布（`_ref/`、`_ref2/` 已在交付后删除）。
 
 ## 1. 目标
 
@@ -16,8 +16,8 @@
 | `@liustack/modlens` v3.18.3 | 已安装 | 工具 + skill 的组合交付模式 |
 | `@linxin666/dsh-tool-describe-image` v0.1.19 | 已安装 | 最简工具插件模板：`defineTool` + `installSettingsSection` + 每调用动态解析配置 |
 | `@dsh-external/dsh-visualize` v0.1.2 | 已安装 | 会话内渲染 UI 卡片的思路 |
-| **`dsh-image-gen`** v0.2.0（LeemanCheung） | 未安装，源码已拉取到 `_ref/` | 核心参照：`image_gen` 工具；最终图保存为 **DSH 不可变附件**（`ctx.attachments.saveImage`）→ 会话重载可回放；纯文本输出 + `REFERENCE_MARKER` JSON 让客户端渲染卡片；loopback RPC 拉进度/取图；`redirect:'error'`、限响应大小、限并发、只重试瞬时故障；客户端 `tool.call.toolview` 插槽渲染动画卡片 + 灯箱 + 下载；**明确不写工作区** |
-| **`dsh-draw-router`**（xiaozhe7772222） | 未安装，README 已拉取到 `_ref2/` | 通用 OpenAI 兼容端点：用户填 `baseURL + API Key` → `GET /v1/models` 自动发现生图模型（30+ 名称模式匹配）+ 手动加模型；`draw_image` / `draw_list_sources` 工具；REST API 管理多源；返回图片 URL |
+| **`dsh-image-gen`** v0.2.0（LeemanCheung） | 未安装（参考源码已阅后删除） | 核心参照：`image_gen` 工具；最终图保存为 **DSH 不可变附件**（`ctx.attachments.saveImage`）→ 会话重载可回放；纯文本输出 + `REFERENCE_MARKER` JSON 让客户端渲染卡片；loopback RPC 拉进度/取图；`redirect:'error'`、限响应大小、限并发、只重试瞬时故障；客户端 `tool.call.toolview` 插槽渲染动画卡片 + 灯箱 + 下载；**明确不写工作区** |
+| **`dsh-draw-router`**（xiaozhe7772222） | 未安装（参考 README 已阅后删除） | 通用 OpenAI 兼容端点：用户填 `baseURL + API Key` → `GET /v1/models` 自动发现生图模型（30+ 名称模式匹配）+ 手动加模型；`draw_image` / `draw_list_sources` 工具；REST API 管理多源；返回图片 URL |
 
 **关键差异点（我们的新东西）**：dsh-image-gen 只把图存进 DSH 附件仓库、不落工作区；dsh-draw-router 只返回 URL、不做会话内持久卡片。我们的插件把两者结合，并新增**手动/自动保存到文件**语义。
 
