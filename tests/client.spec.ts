@@ -202,6 +202,52 @@ describe('ImageClient.listModelIds', () => {
   })
 })
 
+describe('ImageClient async tasks', () => {
+  it('polls a task and downloads the completed result url', async () => {
+    const taskId = 'tsk_img_test'
+    let polls = 0
+    const fetchImpl = vi.fn(async (input: any, init?: any) => {
+      const url = String(input)
+      if (url.endsWith('/images/generations')) {
+        return new Response(JSON.stringify({ object: 'generation.task', id: taskId, status: 'pending', progress: 0 }), { status: 200 })
+      }
+      if (url.endsWith(`/images/generations/${taskId}`)) {
+        polls += 1
+        if (polls === 1) {
+          return new Response(JSON.stringify({ id: taskId, status: 'in_progress', progress: 50 }), { status: 200 })
+        }
+        return new Response(JSON.stringify({
+          id: taskId,
+          status: 'completed',
+          result: { type: 'image', data: [{ url: 'https://files.example.com/x.png' }] },
+        }), { status: 200 })
+      }
+      if (url === 'https://files.example.com/x.png') {
+        return new Response(pngBytes(), { status: 200 })
+      }
+      throw new Error(`unexpected fetch: ${url}`)
+    })
+    const result = await client(fetchImpl).generate(
+      { prompt: 'x', model: 'm', n: 1, outputFormat: 'png' },
+      new AbortController().signal,
+      noop,
+    )
+    expect(polls).toBeGreaterThanOrEqual(2)
+    expect(Array.from(result.images[0]!.data)).toEqual(Array.from(pngBytes()))
+  })
+
+  it('fails when the task reports failure', async () => {
+    const fetchImpl = vi.fn(async (input: any) => {
+      if (String(input).endsWith('/images/generations')) {
+        return new Response(JSON.stringify({ object: 'generation.task', id: 'tsk_bad', status: 'pending' }), { status: 200 })
+      }
+      return new Response(JSON.stringify({ id: 'tsk_bad', status: 'failed', error: { message: 'prompt rejected' } }), { status: 200 })
+    })
+    await expect(client(fetchImpl).generate({ prompt: 'x', model: 'm', n: 1, outputFormat: 'png' }, new AbortController().signal, noop))
+      .rejects.toThrow(/task failed/)
+  })
+})
+
 describe('downloadImageUrl', () => {
   it('bounded download and redirect limit', async () => {
     const fetchImpl = vi.fn(async () => new Response(pngBytes(), { status: 200 }))

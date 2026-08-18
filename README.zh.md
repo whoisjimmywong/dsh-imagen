@@ -119,6 +119,7 @@ npm run smoke
 ## 已知限制
 
 - 各厂商 `images/edits` 支持不一；插件实现 OpenAI multipart 契约与常见 b64/url 响应形态，其余情况如实透出厂商错误。
+- 异步任务型厂商（DashScope 式中继：POST 返回 `generation.task`，提供 `GET /images/generations/{id}`）会自动轮询；模拟服务（`node scripts/mock-image-api.mjs`）可在请求体带 `"task": true` 复现该流程。
 - 最终预览仅限回环访问（本地 DSH 页面）；远程 Web 客户端只会看到明确的不可用状态，不会收到图片字节。
 - 参考图使用粘贴附件时需要附件服务（`dsh-attachment`，web profile 默认挂载）。
 

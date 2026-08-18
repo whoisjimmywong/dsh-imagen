@@ -1,6 +1,6 @@
 {
   "name": "dsh-imagen",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Agent-driven image generation for DeepSeek Harness: multi-source OpenAI-compatible APIs, model auto-discovery, text-to-image and image-to-image, with automatic workspace saving and a durable in-chat image card",
   "keywords": [
     "deepseek-harness",

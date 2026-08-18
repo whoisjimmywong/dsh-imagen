@@ -73,14 +73,40 @@ async function handleGenerations(req, res) {
     return
   }
   const n = typeof body.n === 'number' ? Math.min(4, Math.max(1, body.n)) : 1
+  // Async task mode (like DashScope-style relays): pass task: true to exercise
+  // the poll flow; the client polls GET /v1/images/generations/{id}.
+  if (body.task === true) {
+    const id = `tsk_mock_${randomUUID().slice(0, 8)}`
+    const url = `http://127.0.0.1:${PORT}/v1/files/${id}.png`
+    setTimeout(() => { tasks.set(id, 'completed') }, 1200)
+    return json(res, 200, { object: 'generation.task', id, status: 'pending', progress: 0, created_at: Math.floor(Date.now() / 1000) })
+  }
   const data = Array.from({ length: n }, () => ({ b64_json: PNG_B64, size: body.size ?? '256x256', output_format: body.output_format ?? 'png' }))
   json(res, 200, { created: Math.floor(Date.now() / 1000), data, usage })
 }
+
+/** Completed async task states (id -> status). */
+const tasks = new Map()
 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`)
   if (req.method === 'GET' && url.pathname === '/v1/models') {
     return json(res, 200, { object: 'list', data: MODELS })
+  }
+  if (req.method === 'GET' && url.pathname.startsWith('/v1/images/generations/tsk_')) {
+    const id = url.pathname.split('/').pop()
+    const status = tasks.get(id) ?? 'in_progress'
+    if (status === 'completed') {
+      return json(res, 200, {
+        id, status: 'completed', progress: 100,
+        result: { type: 'image', data: [{ url: `http://127.0.0.1:${PORT}/v1/files/${id}.png` }] },
+      })
+    }
+    return json(res, 200, { id, status, progress: 40, created_at: Math.floor(Date.now() / 1000) })
+  }
+  if (req.method === 'GET' && url.pathname.startsWith('/v1/files/')) {
+    res.writeHead(200, { 'content-type': 'image/png', 'content-length': PNG.length })
+    return res.end(PNG)
   }
   if (req.method === 'POST' && (url.pathname === '/v1/images/generations' || url.pathname === '/v1/images/edits')) {
     return handleGenerations(req, res)

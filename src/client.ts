@@ -10,6 +10,8 @@ import type { ImageFormat, ImageUsageValue } from './types.ts'
 
 const MAX_REDIRECTS = 3
 const MAX_ERROR_BYTES = 8_192
+/** Poll interval for async task-based providers (e.g. DashScope-style relays). */
+const TASK_POLL_MS = 2_000
 
 /** One validated request to a generation endpoint. */
 export interface GenerationRequest {
@@ -100,6 +102,23 @@ export function validateBaseUrl(value: string): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** Whether a generations/edits response is an async task object to poll. */
+function isTaskResponse(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) return false
+  if (value.object === 'generation.task') return true
+  return typeof value.id === 'string'
+    && typeof value.status === 'string'
+    && !Array.isArray(value.data)
+}
+
+/** The task id of an async task response. */
+function taskIdOf(value: Record<string, unknown>): string {
+  if (typeof value.id !== 'string' || value.id === '') {
+    throw new ImageApiError('Provider returned an async task without an id.', { retryable: false })
+  }
+  return value.id
 }
 
 function outputFormat(value: unknown, fallback: ImageFormat): ImageFormat {
@@ -536,10 +555,88 @@ export class ImageClient {
     }
     value = await parsedJson(response, signal, maximumJsonBytes)
     const parsedUsage = usage(isRecord(value) ? value.usage : undefined)
+    if (isTaskResponse(value)) {
+      const taskId = taskIdOf(value)
+      return this.pollTask(taskId, request.outputFormat, signal, onProgress, maximumJsonBytes)
+    }
     return {
       images: await this.imagesFromPayload(value, request.outputFormat, signal),
       ...(parsedUsage === undefined ? {} : { usage: parsedUsage }),
     }
+  }
+
+  /** Poll an async task to completion and assemble the returned images. */
+  private async pollTask(
+    taskId: string,
+    fallbackFormat: ImageFormat,
+    signal: AbortSignal,
+    onProgress: (progress: GenerationProgress) => void,
+    maximumJsonBytes: number,
+  ): Promise<GenerationResult> {
+    const statusUrl = `${this.endpoint}/${taskId}`
+    const headers = { accept: 'application/json', authorization: `Bearer ${this.options.apiKey}` }
+    onProgress({ kind: 'generating', attempt: 1 })
+    while (true) {
+      signal.throwIfAborted()
+      let response: Response
+      try {
+        response = await this.fetchImpl(statusUrl, { method: 'GET', redirect: 'error', headers, signal })
+      } catch (error) {
+        if (signal.aborted) throw signal.reason
+        throw new ImageApiError('Image generation task status check failed.', { retryable: true, cause: error })
+      }
+      if (!response.ok) throw safeProviderMessage(response.status, await responseErrorBody(response, signal))
+      const value = await parsedJson(response, signal, maximumJsonBytes)
+      if (!isRecord(value) || typeof value.status !== 'string') {
+        throw new ImageApiError('Provider returned malformed task status.', { retryable: true })
+      }
+      const status = value.status
+      if (status === 'completed' || status === 'succeeded') {
+        const images = await this.imagesFromTaskResult(value, fallbackFormat, signal)
+        if (images.length === 0) throw new ImageApiError('Provider completed the task without returning an image.', { retryable: false })
+        const parsedUsage = usage(value.usage)
+        return { images, ...(parsedUsage === undefined ? {} : { usage: parsedUsage }) }
+      }
+      if (status === 'failed' || status === 'error' || status === 'cancelled') {
+        const detail = isRecord(value.error) && typeof value.error.message === 'string'
+          ? value.error.message
+          : typeof value.message === 'string'
+            ? value.message
+            : status
+        throw new ImageApiError(`Image generation task ${status}: ${detail}`, { retryable: false })
+      }
+      await wait(TASK_POLL_MS, signal)
+    }
+  }
+
+  /** Extract images from a completed task's `result.data[]` (url or b64). */
+  private async imagesFromTaskResult(
+    value: Record<string, unknown>,
+    fallbackFormat: ImageFormat,
+    signal: AbortSignal,
+  ): Promise<GeneratedImage[]> {
+    const resultValue = value.result
+    const result = isRecord(resultValue)
+    const entries = result && Array.isArray(resultValue.data) ? resultValue.data : []
+    const images: GeneratedImage[] = []
+    for (const entry of entries) {
+      if (!isRecord(entry)) continue
+      let data: Uint8Array | undefined
+      if (typeof entry.b64_json === 'string') {
+        data = base64Bytes(entry.b64_json, this.options.maxImageBytes)
+      } else if (typeof entry.url === 'string') {
+        data = await downloadImageUrl(entry.url, this.options.maxImageBytes, signal, this.fetchImpl)
+      }
+      if (data === undefined) continue
+      const format = outputFormat(entry.output_format, fallbackFormat)
+      images.push({
+        data,
+        format,
+        ...(typeof entry.size === 'string' ? { size: entry.size } : {}),
+        ...(typeof entry.quality === 'string' ? { quality: entry.quality } : {}),
+      })
+    }
+    return images
   }
 
   /** Parse an SSE stream into images, surfacing partial frames via onProgress. */
@@ -616,6 +713,10 @@ export class ImageClient {
     )
     const value = await parsedJson(response, signal, maximumJsonBytes)
     const parsedUsage = usage(isRecord(value) ? value.usage : undefined)
+    if (isTaskResponse(value)) {
+      const taskId = taskIdOf(value)
+      return this.pollTask(taskId, request.outputFormat, signal, onProgress, maximumJsonBytes)
+    }
     return {
       images: await this.imagesFromPayload(value, request.outputFormat, signal),
       ...(parsedUsage === undefined ? {} : { usage: parsedUsage }),

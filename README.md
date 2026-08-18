@@ -119,6 +119,7 @@ Artifacts (committed): `lib/index.js` (host plugin) and `lib/client.js` (browser
 ## Limitations
 
 - Provider `images/edits` support varies; the plugin speaks the OpenAI multipart contract plus the common b64/url response shapes, and surfaces provider errors verbatim otherwise.
+- Async task-based providers (DashScope-style relays that return a `generation.task` and expose `GET /images/generations/{id}`) are polled automatically; the mock server (`node scripts/mock-image-api.mjs`) can simulate this with `"task": true` in the request body.
 - Final previews are loopback-only (the local DSH page); remote web clients see an explicit unavailable state, never the bytes.
 - Reference images by pasted attachment require the attachment service (`dsh-attachment`, mounted by default in the web profile).
 
