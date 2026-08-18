@@ -32,7 +32,7 @@
 - 会话上下文：`exec.agent.session.header.id`（会话 id），`header.cwd`（工作区路径，供保存用）
 - 回放授权：`ctx.sessionPersistence.inspect(SessionId(id), signal)` 校验图片归属
 - loopback RPC：`ctx.connection.rpc.handle(channel, handler, {authority:'loopback'})`；客户端 `connection.rpc.call(...)`（仅回环可用）
-- 设置页：`installSettingsSection(ctx, namespace, Config, config, {setSource, onChange, validate})`（`@deepseek-ai/dsh-settings`）→ Settings → 插件配置
+- 设置页：host 端 `installSettingsSection(ctx, namespace, Config, config, {setSource, onChange, validate})`（`@deepseek-ai/dsh-settings`）+ 浏览器端注册 `settings.section` 页面（Settings → 图片生成）
 - 浏览器端：`src/client/index.tsx`，`ctx.slots.inject('tool.call.toolview', ...)` 注册 `key` 匹配工具名的卡片组件；`ctx.locale.register(NS, {zh, en})`
 - 构建：tsdown（host + client 双配置）；测试 vitest
 
