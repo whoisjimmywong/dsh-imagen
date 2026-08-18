@@ -129,7 +129,9 @@ function NumberField({
 
 /** The plugin-config card (Plugins → 插件配置) for dsh-imagen. */
 function ImagenSettingsCard({ t, loadConfig, saveConfig }: Props) {
-  const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [open, setOpen] = useState(false)
+  const [loadedOnce, setLoadedOnce] = useState(false)
+  const [phase, setPhase] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const [loadError, setLoadError] = useState('')
   const [value, setValue] = useState<ImagenSettingsDraft | undefined>()
   const [sourceRows, setSourceRows] = useState<SourceRow[]>([])
@@ -152,7 +154,9 @@ function ImagenSettingsCard({ t, loadConfig, saveConfig }: Props) {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | undefined>()
 
+  // Load the host config lazily on first expand, like the sibling cards.
   useEffect(() => {
+    if (!open || loadedOnce) return
     let live = true
     setPhase('loading')
     setLoadError('')
@@ -181,11 +185,13 @@ function ImagenSettingsCard({ t, loadConfig, saveConfig }: Props) {
       if (!live) return
       setLoadError(error instanceof Error ? error.message : String(error))
       setPhase('error')
+    }).finally(() => {
+      if (live) setLoadedOnce(true)
     })
     return () => { live = false }
     // loadConfig is stable for the plugin lifetime.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [open, loadedOnce])
 
   const buildDraft = (): ImagenSettingsDraft => {
     const defaultSourceValue = defaultSource.trim()
@@ -243,18 +249,27 @@ function ImagenSettingsCard({ t, loadConfig, saveConfig }: Props) {
     }
   }
 
-  if (phase === 'loading') {
-    return <div className="dshImagenSet__page"><p>{t('settingsLoading')}</p></div>
-  }
-  if (phase === 'error') {
-    return <div className="dshImagenSet__page"><p className="dshImagenSet__error">{loadError || t('settingsLoadFailed')}</p></div>
-  }
-
   return (
-    <div className="dshImagenSet__page">
-      <h2 className="dshImagenSet__heading">{t('settingsTitle')}</h2>
-      <p className="dshImagenSet__intro">{t('settingsIntro')}</p>
-
+    <div className="dshImagenCard" data-open={open}>
+      <button
+        type="button"
+        className="dshImagenCard__header"
+        onClick={() => { setOpen(value => !value) }}
+        aria-expanded={open}
+      >
+        <span className="dshImagenCard__heading">
+          <span className="dshImagenCard__title">{t('settingsTitle')}</span>
+          <span className="dshImagenCard__subtitle">{t('settingsIntro')}</span>
+        </span>
+        <svg className={`dshImagenCard__chevron${open ? ' dshImagenCard__chevron--open' : ''}`} width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+          <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {open && (
+        <div className="dshImagenCard__body">
+          {phase === 'loading' && <p className="dshImagenSet__hint">{t('settingsLoading')}</p>}
+          {phase === 'error' && <p className="dshImagenSet__error">{loadError || t('settingsLoadFailed')}</p>}
+          {phase === 'ready' && (<>
       <section className="dshImagenSet__group">
         <h3 className="dshImagenSet__groupTitle">{t('settingsSources')}</h3>
         {sourceRows.length === 0 && <p className="dshImagenSet__hint">{t('settingsNoSources')}</p>}
@@ -356,13 +371,16 @@ function ImagenSettingsCard({ t, loadConfig, saveConfig }: Props) {
         </div>
       </section>
 
-      <div className="dshImagenSet__actions">
+      <div className="dshImagenCard__footer">
         <button type="button" className="dshImagenSet__button" disabled={busy || !dirty} onClick={() => { void save() }}>{t('settingsSave')}</button>
         <button type="button" className="dshImagenSet__button" disabled={busy} onClick={() => { setMessage(undefined) }}>{t('settingsDiscard')}</button>
         {message !== undefined && (
           <span className={message.kind === 'ok' ? 'dshImagenSet__ok' : 'dshImagenSet__error'}>{message.text}</span>
         )}
       </div>
+          </>)}
+        </div>
+      )}
     </div>
   )
 }

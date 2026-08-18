@@ -101,8 +101,36 @@ export const IMAGEN_STYLES = `
 }
 `
 
-/** Scoped styles for the Settings → imagen page. */
+/** Scoped styles for the Settings → 插件配置 accordion card. */
 export const IMAGEN_SETTINGS_STYLES = `
+.dshImagenCard {
+  border: 1px solid var(--dsw-alias-border, var(--ds-inline-border, rgba(127,127,127,.25)));
+  border-radius: 12px;
+  background: var(--dsw-alias-card-bg, var(--ds-inline-bg, rgba(127,127,127,.05)));
+  overflow: hidden;
+}
+.dshImagenCard__header {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 14px 16px; background: transparent; border: 0; cursor: pointer;
+  text-align: left; color: inherit; font: inherit;
+}
+.dshImagenCard__header:hover { background: var(--dsw-alias-hover, rgba(127,127,127,.06)); }
+.dshImagenCard__heading { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.dshImagenCard__title { font-size: 14px; font-weight: 600; }
+.dshImagenCard__subtitle {
+  font-size: 12px; color: var(--dsw-alias-label-tertiary, var(--ds-text-muted, rgba(127,127,127,.8)));
+  overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.dshImagenCard__chevron {
+  color: var(--dsw-alias-label-tertiary, rgba(127,127,127,.8));
+  flex: none; transition: transform .16s;
+}
+.dshImagenCard__chevron--open { transform: rotate(180deg); }
+.dshImagenCard__body { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 14px; }
+.dshImagenCard__footer {
+  display: flex; align-items: center; gap: 10px; padding-top: 12px;
+  border-top: 1px solid var(--dsw-alias-border, rgba(127,127,127,.2));
+}
 .dshImagenSet__page { max-width: 760px; display: flex; flex-direction: column; gap: 14px; font-size: 13px; }
 .dshImagenSet__heading { margin: 0; font-size: 18px; font-weight: 600; }
 .dshImagenSet__intro { margin: 0; color: var(--ds-text-muted, rgba(127,127,127,.85)); }
@@ -135,4 +163,7 @@ export const IMAGEN_SETTINGS_STYLES = `
 .dshImagenSet__actions { display: flex; align-items: center; gap: 10px; }
 .dshImagenSet__ok { color: rgba(80,190,120,.95); font-size: 12px; }
 .dshImagenSet__error { color: rgba(220,80,80,.95); font-size: 12px; }
+@media (prefers-reduced-motion: reduce) {
+  .dshImagenCard__chevron { transition: none; }
+}
 `
