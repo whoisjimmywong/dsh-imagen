@@ -12,5 +12,3 @@ _ref2/
 # never committed.
 generated-images/
 
-# Local screenshots (e.g. UI review captures) — not part of the plugin.
-settings_screenshot.png
