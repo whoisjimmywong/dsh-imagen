@@ -1,0 +1,9 @@
+node_modules/
+*.log
+.DS_Store
+*.tgz
+
+# Local research material (downloaded copies of other repos) — not part of
+# this plugin and never committed.
+_ref/
+_ref2/

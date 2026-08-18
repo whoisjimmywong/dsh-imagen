@@ -1,0 +1,35 @@
+# dsh-imagen bundle patch: inserts the imagen plugin row into the web profile
+# roster. Applied as a profile bundle layer (the `dsh.bundle.patch` manifest
+# field). Install from the plugin package directory (any location):
+#   dsh plugin --profile web add .
+# or from an explicit local package path:
+#   dsh plugin --profile web add <path-to-dsh-imagen>
+#
+# Configure sources (baseUrl + a DSH credential reference name) and the
+# workspace save directory here, or from Settings -> 插件配置 -> imagen.
+- insert:
+    - id: imagen
+      name: dsh-imagen
+      inject: [tools, credentials, connection, sessionPersistence]
+      config:
+        sources: {}
+        defaultSource: ''
+        save:
+          enabled: true
+          dir: generated-images
+          nameTemplate: '{prompt}-{timestamp}'
+        discovery:
+          enabled: true
+          extraPatterns: []
+        defaults:
+          size: ''
+          quality: ''
+          outputFormat: png
+          n: 1
+        limits:
+          timeoutMs: 120000
+          maxRetries: 2
+          retryBaseMs: 1000
+          maxConcurrent: 2
+          maxImageBytes: 20000000
+          maxReferenceBytes: 10000000
