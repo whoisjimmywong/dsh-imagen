@@ -272,6 +272,30 @@ export function apply(ctx: Context, config: ImagenConfig = {}): void {
     IMAGEN_RPC_CHANNEL,
     async (endpoint, payload, signal) => {
       if (!isRecord(payload)) return rpcError('A JSON object is required.')
+      // Settings endpoints are loopback-only and session-free: the browser
+      // card reads/writes the imagen namespace through this channel, exactly
+      // like modlens's own config route — the apiproxy settings allowlist is
+      // hard-coded in rc.6 and would otherwise answer settings-not-exposed.
+      if (endpoint === IMAGEN_RPC_ENDPOINT.settingsGet) {
+        try {
+          return { ok: true, value: settingsView(spec()) }
+        } catch (error) {
+          return rpcError(error instanceof Error ? error.message : 'Failed to read settings.')
+        }
+      }
+      if (endpoint === IMAGEN_RPC_ENDPOINT.settingsSet) {
+        const draft = isRecord(payload.config) ? payload.config as ImagenConfig : undefined
+        if (draft === undefined) return rpcError('A valid config object is required.')
+        try {
+          const resolved = resolveConfig(draft)
+          const settings = ctx.get('settings') as { replace(ns: unknown, section: unknown): Promise<void> } | undefined
+          if (settings === undefined) throw new Error('The settings service is not mounted; edit ~/.dsh/cordis.patch.yml instead.')
+          await settings.replace(IMAGEN_SETTINGS_NAMESPACE, plainConfig(resolved))
+          return { ok: true, value: settingsView(spec()) }
+        } catch (error) {
+          return rpcError(error instanceof Error ? error.message : 'Failed to save settings.')
+        }
+      }
       const sessionId = safeString(payload.sessionId, 256)
       const callId = safeString(payload.callId, 512)
       if (sessionId === undefined || callId === undefined) {
@@ -868,6 +892,46 @@ function parseSaveMode(save: string | undefined, resolved: ResolvedImagenConfig)
 
 function relativePath(workspace: string, path: string): string {
   return relative(workspace, path).split(sep).join('/')
+}
+
+/** Serializable view of the resolved config for the browser settings card. */
+function settingsView(config: ResolvedImagenConfig): Record<string, unknown> {
+  const sources: Record<string, { baseUrl: string; credential: string; model?: string }> = {}
+  for (const [name, source] of Object.entries(config.sources)) {
+    sources[name] = {
+      baseUrl: source.baseUrl,
+      credential: String(source.credential),
+      ...(source.model === undefined ? {} : { model: source.model }),
+    }
+  }
+  return {
+    sources,
+    ...(config.defaultSource === undefined ? {} : { defaultSource: config.defaultSource }),
+    save: config.save,
+    discovery: config.discovery,
+    defaults: config.defaults,
+    limits: config.limits,
+  }
+}
+
+/** Persistable plain config (credential references as names) for the settings store. */
+function plainConfig(config: ResolvedImagenConfig): Record<string, unknown> {
+  const sources: Record<string, { baseUrl: string; credential: string; model?: string }> = {}
+  for (const [name, source] of Object.entries(config.sources)) {
+    sources[name] = {
+      baseUrl: source.baseUrl,
+      credential: String(source.credential),
+      ...(source.model === undefined ? {} : { model: source.model }),
+    }
+  }
+  return {
+    sources,
+    ...(config.defaultSource === undefined ? {} : { defaultSource: config.defaultSource }),
+    save: config.save,
+    discovery: config.discovery,
+    defaults: config.defaults,
+    limits: config.limits,
+  }
 }
 
 /** Keep only scalar passthrough values (strings, numbers, booleans). */

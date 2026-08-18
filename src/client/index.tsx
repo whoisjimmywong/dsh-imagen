@@ -6,7 +6,6 @@ import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-tool/client'
-import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import { IMAGEN_RPC_CHANNEL, IMAGEN_RPC_ENDPOINT } from '../rpc.ts'
 import {
   PRESENTATION_SCHEMA,
@@ -81,7 +80,7 @@ const en = {
   settingsDiscard: 'Discard',
   settingsSaved: 'Settings saved.',
   settingsSaveFailed: 'Failed to save settings.',
-  settingsUnavailable: 'The imagen settings namespace is not reachable. Add "imagen" to web_settings_namespaces in ~/.dsh/settings.yaml, then reload this page.',
+  settingsLoadFailed: 'Failed to load settings from the Host.',
   settingsLoading: 'Loading settings…',
 } as const
 
@@ -144,7 +143,7 @@ const zh: Record<LocaleKey, string> = {
   settingsDiscard: '放弃修改',
   settingsSaved: '设置已保存。',
   settingsSaveFailed: '保存设置失败。',
-  settingsUnavailable: '无法连接 imagen 设置命名空间。请在 ~/.dsh/settings.yaml 的 web_settings_namespaces 中加入 imagen 后刷新本页。',
+  settingsLoadFailed: '从 Host 读取设置失败。',
   settingsLoading: '正在加载设置…',
 }
 
@@ -463,8 +462,8 @@ function decodeImage(value: unknown): { mediaType: string; width?: number; heigh
   }
 }
 
-/** Register the localized keyed tool card, the settings page, and lifecycle CSS. */
-export const inject = ['slots', 'locale', 'connection', 'settingsScope']
+/** Register the localized keyed tool card, the settings card, and lifecycle CSS. */
+export const inject = ['slots', 'locale', 'connection']
 
 /** Browser Cordis plugin entry. */
 export function apply(ctx: ClientContext): void {
@@ -500,7 +499,7 @@ export function apply(ctx: ClientContext): void {
     }),
   }, ImagenCard))
   try {
-    installPluginCard(ctx, t as (key: string) => string)
+    installPluginCard(ctx, t as (key: string) => string, call)
   } catch (error) {
     // Wiring failures must never fail the shell boot; log and continue.
     console.error('[dsh-imagen] settings card skipped:', error)

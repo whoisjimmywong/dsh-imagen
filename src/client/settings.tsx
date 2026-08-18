@@ -1,31 +1,22 @@
 /** Browser settings card for dsh-imagen: a pragmatic form over the host
- *  `imagen` settings namespace (sources, save, discovery, defaults, limits).
+ *  `imagen` configuration (sources, save, discovery, defaults, limits).
  *
- *  Placement: the family "Plugins → 插件配置" group (`web-ui.plugin.item`
- *  slot), like modlens and describe-image. The scope binds through the family
- *  settings bridge (`webUiSettings.bind`) when available, falling back to the
- *  official settings scope — see `@linxin666/dsh-client-ui-web-ui-settings`.
- *  The bridge serves namespaces listed in the user's `web_settings_namespaces`
- *  allowlist in `~/.dsh/settings.yaml` (intersected with host-registered
- *  namespaces), so deployments must add `imagen` there. */
+ *  Placement: the official Plugins configuration page (`settings.plugin.item`
+ *  slot), exactly like modlens. rc.6's settings surface renders a fixed set
+ *  of cards and does not enumerate settings namespaces (dsh-host-apiproxy
+ *  hard-codes WEB_SETTINGS_NAMESPACES), so the card reads and writes through
+ *  the plugin's own loopback RPC (`imagen/settings/get|set`) instead of a
+ *  settings scope — the browser never needs the apiproxy allowlist. */
 
-import { useEffect, useMemo, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
-import type { ClientContext, SettingsScope } from '@deepseek-ai/dsh-client-runtime/client'
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
-    /** One family plugin card inside the Web UI Plugins group. */
-    'web-ui.plugin.item': { kind: 'list'; scope: 'root'; owner: { children?: never } }
-  }
-}
-
-declare module '@deepseek-ai/cordis' {
-  interface Context {
-    /** Optional rc.6 compatibility binder provided by dsh-web-ui-settings. */
-    webUiSettings?: { bind<S>(spec: { namespace: string }): SettingsScope<S> }
+    /** One card inside the official Plugins configuration page. */
+    'settings.plugin.item': { kind: 'list'; scope: 'root'; owner: { children?: never } }
   }
 }
 
@@ -56,11 +47,12 @@ export interface SourceRow {
 type Translate = (key: string) => string
 
 interface Injected {
-  scope: SettingsScope<ImagenSettingsDraft>
   t: Translate
+  loadConfig: () => Promise<ImagenSettingsDraft>
+  saveConfig: (config: ImagenSettingsDraft) => Promise<void>
 }
 
-type Props = PropsRuntime<'web-ui.plugin.item'> & Injected
+type Props = PropsRuntime<'settings.plugin.item'> & Injected
 
 function clampInteger(value: number | undefined, min: number, max: number, fallback: number): number {
   if (value === undefined || !Number.isFinite(value)) return fallback
@@ -135,32 +127,65 @@ function NumberField({
   )
 }
 
-/** The family plugin-config card (Plugins → 插件配置) for dsh-imagen. */
-function ImagenSettingsCard({ scope, t }: Props) {
-  const snapshot = useSyncExternalStore(
-    (listener: () => void) => scope.subscribe(listener),
-    () => scope.getSnapshot(),
-  )
-  const value = snapshot.status === 'ready' ? snapshot.value : undefined
-  const [sourceRows, setSourceRows] = useState<SourceRow[]>(() => toSources(value))
-  const [defaultSource, setDefaultSource] = useState(value?.defaultSource ?? '')
-  const [saveEnabled, setSaveEnabled] = useState(value?.save?.enabled ?? true)
-  const [saveDir, setSaveDir] = useState(value?.save?.dir ?? 'generated-images')
-  const [nameTemplate, setNameTemplate] = useState(value?.save?.nameTemplate ?? '{prompt}-{timestamp}')
-  const [discoveryEnabled, setDiscoveryEnabled] = useState(value?.discovery?.enabled ?? true)
-  const [extraPatterns, setExtraPatterns] = useState(() => patternsText(value))
-  const [defaultSize, setDefaultSize] = useState(value?.defaults?.size ?? '')
-  const [defaultQuality, setDefaultQuality] = useState(value?.defaults?.quality ?? '')
-  const [defaultFormat, setDefaultFormat] = useState(value?.defaults?.outputFormat ?? 'png')
-  const [defaultN, setDefaultN] = useState(value?.defaults?.n ?? 1)
-  const [timeoutMs, setTimeoutMs] = useState(value?.limits?.timeoutMs ?? 120_000)
-  const [maxRetries, setMaxRetries] = useState(value?.limits?.maxRetries ?? 2)
-  const [retryBaseMs, setRetryBaseMs] = useState(value?.limits?.retryBaseMs ?? 1_000)
-  const [maxConcurrent, setMaxConcurrent] = useState(value?.limits?.maxConcurrent ?? 2)
-  const [maxImageBytes, setMaxImageBytes] = useState(value?.limits?.maxImageBytes ?? 20_000_000)
-  const [maxReferenceBytes, setMaxReferenceBytes] = useState(value?.limits?.maxReferenceBytes ?? 10_000_000)
+/** The plugin-config card (Plugins → 插件配置) for dsh-imagen. */
+function ImagenSettingsCard({ t, loadConfig, saveConfig }: Props) {
+  const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [loadError, setLoadError] = useState('')
+  const [value, setValue] = useState<ImagenSettingsDraft | undefined>()
+  const [sourceRows, setSourceRows] = useState<SourceRow[]>([])
+  const [defaultSource, setDefaultSource] = useState('')
+  const [saveEnabled, setSaveEnabled] = useState(true)
+  const [saveDir, setSaveDir] = useState('generated-images')
+  const [nameTemplate, setNameTemplate] = useState('{prompt}-{timestamp}')
+  const [discoveryEnabled, setDiscoveryEnabled] = useState(true)
+  const [extraPatterns, setExtraPatterns] = useState('')
+  const [defaultSize, setDefaultSize] = useState('')
+  const [defaultQuality, setDefaultQuality] = useState('')
+  const [defaultFormat, setDefaultFormat] = useState('png')
+  const [defaultN, setDefaultN] = useState(1)
+  const [timeoutMs, setTimeoutMs] = useState(120_000)
+  const [maxRetries, setMaxRetries] = useState(2)
+  const [retryBaseMs, setRetryBaseMs] = useState(1_000)
+  const [maxConcurrent, setMaxConcurrent] = useState(2)
+  const [maxImageBytes, setMaxImageBytes] = useState(20_000_000)
+  const [maxReferenceBytes, setMaxReferenceBytes] = useState(10_000_000)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | undefined>()
+
+  useEffect(() => {
+    let live = true
+    setPhase('loading')
+    setLoadError('')
+    void loadConfig().then((config) => {
+      if (!live) return
+      setValue(config)
+      setSourceRows(toSources(config))
+      setDefaultSource(config.defaultSource ?? '')
+      setSaveEnabled(config.save?.enabled ?? true)
+      setSaveDir(config.save?.dir ?? 'generated-images')
+      setNameTemplate(config.save?.nameTemplate ?? '{prompt}-{timestamp}')
+      setDiscoveryEnabled(config.discovery?.enabled ?? true)
+      setExtraPatterns(patternsText(config))
+      setDefaultSize(config.defaults?.size ?? '')
+      setDefaultQuality(config.defaults?.quality ?? '')
+      setDefaultFormat(config.defaults?.outputFormat ?? 'png')
+      setDefaultN(config.defaults?.n ?? 1)
+      setTimeoutMs(config.limits?.timeoutMs ?? 120_000)
+      setMaxRetries(config.limits?.maxRetries ?? 2)
+      setRetryBaseMs(config.limits?.retryBaseMs ?? 1_000)
+      setMaxConcurrent(config.limits?.maxConcurrent ?? 2)
+      setMaxImageBytes(config.limits?.maxImageBytes ?? 20_000_000)
+      setMaxReferenceBytes(config.limits?.maxReferenceBytes ?? 10_000_000)
+      setPhase('ready')
+    }).catch((error) => {
+      if (!live) return
+      setLoadError(error instanceof Error ? error.message : String(error))
+      setPhase('error')
+    })
+    return () => { live = false }
+    // loadConfig is stable for the plugin lifetime.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const buildDraft = (): ImagenSettingsDraft => {
     const defaultSourceValue = defaultSource.trim()
@@ -195,33 +220,10 @@ function ImagenSettingsCard({ scope, t }: Props) {
     }
   }
 
-  // Re-seed from the authoritative snapshot whenever it changes.
-  useEffect(() => {
-    if (snapshot.status !== 'ready' || snapshot.value === undefined) return
-    setSourceRows(toSources(snapshot.value))
-    setDefaultSource(snapshot.value.defaultSource ?? '')
-    setSaveEnabled(snapshot.value.save?.enabled ?? true)
-    setSaveDir(snapshot.value.save?.dir ?? 'generated-images')
-    setNameTemplate(snapshot.value.save?.nameTemplate ?? '{prompt}-{timestamp}')
-    setDiscoveryEnabled(snapshot.value.discovery?.enabled ?? true)
-    setExtraPatterns(patternsText(snapshot.value))
-    setDefaultSize(snapshot.value.defaults?.size ?? '')
-    setDefaultQuality(snapshot.value.defaults?.quality ?? '')
-    setDefaultFormat(snapshot.value.defaults?.outputFormat ?? 'png')
-    setDefaultN(snapshot.value.defaults?.n ?? 1)
-    setTimeoutMs(snapshot.value.limits?.timeoutMs ?? 120_000)
-    setMaxRetries(snapshot.value.limits?.maxRetries ?? 2)
-    setRetryBaseMs(snapshot.value.limits?.retryBaseMs ?? 1_000)
-    setMaxConcurrent(snapshot.value.limits?.maxConcurrent ?? 2)
-    setMaxImageBytes(snapshot.value.limits?.maxImageBytes ?? 20_000_000)
-    setMaxReferenceBytes(snapshot.value.limits?.maxReferenceBytes ?? 10_000_000)
-    setMessage(undefined)
-  }, [snapshot])
-
   const dirty = useMemo(
-    () => JSON.stringify(buildDraft()) !== JSON.stringify(snapshot.value ?? {}),
+    () => JSON.stringify(buildDraft()) !== JSON.stringify(value ?? {}),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sourceRows, defaultSource, saveEnabled, saveDir, nameTemplate, discoveryEnabled, extraPatterns, defaultSize, defaultQuality, defaultFormat, defaultN, timeoutMs, maxRetries, retryBaseMs, maxConcurrent, maxImageBytes, maxReferenceBytes, snapshot],
+    [sourceRows, defaultSource, saveEnabled, saveDir, nameTemplate, discoveryEnabled, extraPatterns, defaultSize, defaultQuality, defaultFormat, defaultN, timeoutMs, maxRetries, retryBaseMs, maxConcurrent, maxImageBytes, maxReferenceBytes, value],
   )
 
   const updateRow = (index: number, patch: Partial<SourceRow>): void => {
@@ -232,13 +234,7 @@ function ImagenSettingsCard({ scope, t }: Props) {
     setBusy(true)
     setMessage(undefined)
     try {
-      const draft = buildDraft()
-      await scope.set('sources', draft.sources ?? {})
-      await scope.set('defaultSource', draft.defaultSource ?? '')
-      await scope.set('save', draft.save)
-      await scope.set('discovery', draft.discovery)
-      await scope.set('defaults', draft.defaults)
-      await scope.set('limits', draft.limits)
+      await saveConfig(buildDraft())
       setMessage({ kind: 'ok', text: t('settingsSaved') })
     } catch (error) {
       setMessage({ kind: 'error', text: error instanceof Error ? error.message : t('settingsSaveFailed') })
@@ -247,11 +243,11 @@ function ImagenSettingsCard({ scope, t }: Props) {
     }
   }
 
-  if (snapshot.status === 'unavailable') {
-    return <div className="dshImagenSet__page"><p>{t('settingsUnavailable')}</p></div>
-  }
-  if (snapshot.status === 'loading' || snapshot.value === undefined) {
+  if (phase === 'loading') {
     return <div className="dshImagenSet__page"><p>{t('settingsLoading')}</p></div>
+  }
+  if (phase === 'error') {
+    return <div className="dshImagenSet__page"><p className="dshImagenSet__error">{loadError || t('settingsLoadFailed')}</p></div>
   }
 
   return (
@@ -371,19 +367,27 @@ function ImagenSettingsCard({ scope, t }: Props) {
   )
 }
 
-/** Register the family plugin card; slot lifecycle is fiber-owned. */
-export function installPluginCard(ctx: ClientContext, t: Translate): void {
-  // Access both services through ctx.get: cordis guards direct property access
-  // with "cannot get property without inject", and webUiSettings is optional.
-  const webUi = ctx.get('webUiSettings') as { bind<S>(spec: { namespace: string }): SettingsScope<S> } | undefined
-  const official = ctx.get('settingsScope') as { bind<S>(spec: { namespace: string }): SettingsScope<S> } | undefined
-  const binder = webUi ?? official
-  if (binder === undefined) return
-  const scope = binder.bind<ImagenSettingsDraft>({ namespace: 'imagen' })
-  ctx.slots.inject('web-ui.plugin.item', () => ctx.slots.register({
-    name: 'web-ui.plugin.item',
-    id: 'imagen',
-    order: 30,
-    inject: () => ({ scope, t }),
-  }, ImagenSettingsCard))
+/** Register the official plugin-config card (slot lifecycle is fiber-owned). */
+export function installPluginCard(
+  ctx: ClientContext,
+  t: Translate,
+  call: (endpoint: string, payload: unknown, signal: AbortSignal) => Promise<unknown>,
+): void {
+  const signal = new AbortController().signal
+  const loadConfig = async (): Promise<ImagenSettingsDraft> => {
+    const value = await call('imagen/settings/get', {}, signal)
+    if (typeof value !== 'object' || value === null) throw new Error('Host returned invalid settings')
+    return value as ImagenSettingsDraft
+  }
+  const saveConfig = async (config: ImagenSettingsDraft): Promise<void> => {
+    await call('imagen/settings/set', { config }, signal)
+  }
+  ctx.slots.inject('settings.plugin.item', function* () {
+    yield ctx.slots.register({
+      name: 'settings.plugin.item',
+      id: 'imagen',
+      order: 30,
+      inject: () => ({ t, loadConfig, saveConfig }),
+    }, ImagenSettingsCard)
+  })
 }

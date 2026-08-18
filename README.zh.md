@@ -34,15 +34,7 @@ dsh plugin --profile web add .
 
 ### 1. 配置 source
 
-先在 DSH 凭据管理中创建一条（如 `IMAGE_API_KEY`）存放你的 Key，然后把 `imagen` 设置命名空间开放给 Web UI（家族设置桥只服务用户显式白名单），再到 **设置 → 插件配置 → imagen 卡片** 添加 source：
-
-```yaml
-# ~/.dsh/settings.yaml —— 顶层，与其他设置并列
-web_settings_namespaces:
-  - imagen
-```
-
-也可以直接写进 `~/.dsh/cordis.patch.yml`：
+先在 DSH 凭据管理中创建一条（如 `IMAGE_API_KEY`）存放你的 Key，然后到 **设置 → 插件配置 → imagen 卡片** 添加 source（该卡片通过插件自己的回环通道读写配置，无需任何设置白名单）。也可以直接写进 `~/.dsh/cordis.patch.yml`：
 
 ```yaml
 - id: imagen
