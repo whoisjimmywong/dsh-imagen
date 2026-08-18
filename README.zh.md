@@ -116,6 +116,14 @@ npm run smoke
 | `limits.maxImageBytes` | `20000000` | 单张成图字节上限 |
 | `limits.maxReferenceBytes` | `10000000` | 单张参考图字节上限 |
 
+## 配套技能
+
+仓库内置技能 `skills/dsh-imagen/SKILL.md`，指导 Agent 正确使用本插件：何时生图、提示词工程、图生图工作流、保存语义、成本与安全纪律、故障排查。安装到本机：
+
+```powershell
+Copy-Item -Recurse .\skills\dsh-imagen "$env:USERPROFILE\.dsh\skills\"
+```
+
 ## 已知限制
 
 - 各厂商 `images/edits` 支持不一；插件实现 OpenAI multipart 契约与常见 b64/url 响应形态，其余情况如实透出厂商错误。

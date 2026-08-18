@@ -116,6 +116,14 @@ Artifacts (committed): `lib/index.js` (host plugin) and `lib/client.js` (browser
 | `limits.maxImageBytes` | `20000000` | Max accepted bytes per returned image |
 | `limits.maxReferenceBytes` | `10000000` | Max accepted bytes per reference image |
 
+## Companion skill
+
+A bundled skill (`skills/dsh-imagen/SKILL.md`) teaches the agent how to use the plugin well: when to generate, prompt engineering, image-to-image workflows, saving semantics, cost/security discipline and troubleshooting. Install it by copying the folder into `~/.dsh/skills/`:
+
+```powershell
+Copy-Item -Recurse .\skills\dsh-imagen "$env:USERPROFILE\.dsh\skills\"
+```
+
 ## Limitations
 
 - Provider `images/edits` support varies; the plugin speaks the OpenAI multipart contract plus the common b64/url response shapes, and surfaces provider errors verbatim otherwise.
