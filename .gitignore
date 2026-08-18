@@ -11,3 +11,6 @@ _ref2/
 # Generated images (the plugin's workspace save directory) — user output,
 # never committed.
 generated-images/
+
+# Local screenshots (e.g. UI review captures) — not part of the plugin.
+settings_screenshot.png
