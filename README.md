@@ -34,7 +34,15 @@ Restart DSH and refresh the page. The bundle patch inserts the `imagen` row auto
 
 ### 1. Configure a source
 
-Create a DSH credential (Settings → Credentials, or the CLI) named e.g. `IMAGE_API_KEY` holding your key, then add a source in **Settings → Image generation** (the page rendered by this plugin) or directly in `~/.dsh/cordis.patch.yml`:
+Create a DSH credential (Settings → Credentials, or the CLI) named e.g. `IMAGE_API_KEY` holding your key, then expose the `imagen` settings namespace to the Web UI — the family settings bridge serves an explicit user allowlist — and add a source in **Settings → 插件配置 → the imagen card**:
+
+```yaml
+# ~/.dsh/settings.yaml — top level, alongside the other settings
+web_settings_namespaces:
+  - imagen
+```
+
+Alternatively configure the source directly in `~/.dsh/cordis.patch.yml`:
 
 ```yaml
 - id: imagen

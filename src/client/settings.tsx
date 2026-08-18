@@ -1,11 +1,33 @@
-/** Browser settings page for dsh-imagen: a pragmatic form over the host
- *  `imagen` settings namespace (sources, save, discovery, defaults, limits). */
+/** Browser settings card for dsh-imagen: a pragmatic form over the host
+ *  `imagen` settings namespace (sources, save, discovery, defaults, limits).
+ *
+ *  Placement: the family "Plugins → 插件配置" group (`web-ui.plugin.item`
+ *  slot), like modlens and describe-image. The scope binds through the family
+ *  settings bridge (`webUiSettings.bind`) when available, falling back to the
+ *  official settings scope — see `@linxin666/dsh-client-ui-web-ui-settings`.
+ *  The bridge serves namespaces listed in the user's `web_settings_namespaces`
+ *  allowlist in `~/.dsh/settings.yaml` (intersected with host-registered
+ *  namespaces), so deployments must add `imagen` there. */
 
 import { useEffect, useMemo, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
 import type { ClientContext, SettingsScope } from '@deepseek-ai/dsh-client-runtime/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
+
+declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface SlotMap {
+    /** One family plugin card inside the Web UI Plugins group. */
+    'web-ui.plugin.item': { kind: 'list'; scope: 'root'; owner: { children?: never } }
+  }
+}
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    /** Optional rc.6 compatibility binder provided by dsh-web-ui-settings. */
+    webUiSettings?: { bind<S>(spec: { namespace: string }): SettingsScope<S> }
+  }
+}
 
 /** Client-side mirror of the host configuration (all fields optional). */
 export interface ImagenSettingsDraft {
@@ -38,7 +60,7 @@ interface Injected {
   t: Translate
 }
 
-type Props = PropsRuntime<'settings.section'> & Injected
+type Props = PropsRuntime<'web-ui.plugin.item'> & Injected
 
 function clampInteger(value: number | undefined, min: number, max: number, fallback: number): number {
   if (value === undefined || !Number.isFinite(value)) return fallback
@@ -113,8 +135,8 @@ function NumberField({
   )
 }
 
-/** The Settings → imagen page. */
-function ImagenSettingsSection({ scope, t }: Props) {
+/** The family plugin-config card (Plugins → 插件配置) for dsh-imagen. */
+function ImagenSettingsCard({ scope, t }: Props) {
   const snapshot = useSyncExternalStore(
     (listener: () => void) => scope.subscribe(listener),
     () => scope.getSnapshot(),
@@ -349,16 +371,16 @@ function ImagenSettingsSection({ scope, t }: Props) {
   )
 }
 
-/** Register the Settings → imagen page (slot lifecycle is fiber-owned). */
-export function installSettingsPage(ctx: ClientContext, t: Translate): void {
-  const binder = (ctx as unknown as { settingsScope?: { bind<T>(spec: { namespace: string }): SettingsScope<T> } }).settingsScope
+/** Register the family plugin card; slot lifecycle is fiber-owned. */
+export function installPluginCard(ctx: ClientContext, t: Translate): void {
+  const binder = (ctx as unknown as { webUiSettings?: { bind<S>(spec: { namespace: string }): SettingsScope<S> } }).webUiSettings
+    ?? (ctx as unknown as { settingsScope?: { bind<S>(spec: { namespace: string }): SettingsScope<S> } }).settingsScope
   if (binder === undefined) return
   const scope = binder.bind<ImagenSettingsDraft>({ namespace: 'imagen' })
-  ctx.slots.inject('settings.section', () => ctx.slots.register({
-    name: 'settings.section',
+  ctx.slots.inject('web-ui.plugin.item', () => ctx.slots.register({
+    name: 'web-ui.plugin.item',
     id: 'imagen',
     order: 30,
-    label: () => t('settingsNav'),
     inject: () => ({ scope, t }),
-  }, ImagenSettingsSection))
+  }, ImagenSettingsCard))
 }

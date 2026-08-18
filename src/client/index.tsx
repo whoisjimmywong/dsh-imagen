@@ -19,7 +19,7 @@ import {
   type ImageRefValue,
 } from '../types.ts'
 import { IMAGEN_STYLES, IMAGEN_SETTINGS_STYLES } from './styles.ts'
-import { installSettingsPage } from './settings.tsx'
+import { installPluginCard } from './settings.tsx'
 
 const NS = 'dsh.imagen' as const
 const POLL_MS = 650
@@ -81,7 +81,7 @@ const en = {
   settingsDiscard: 'Discard',
   settingsSaved: 'Settings saved.',
   settingsSaveFailed: 'Failed to save settings.',
-  settingsUnavailable: 'The imagen settings namespace is not available from this page.',
+  settingsUnavailable: 'The imagen settings namespace is not reachable. Add "imagen" to web_settings_namespaces in ~/.dsh/settings.yaml, then reload this page.',
   settingsLoading: 'Loading settings…',
 } as const
 
@@ -144,7 +144,7 @@ const zh: Record<LocaleKey, string> = {
   settingsDiscard: '放弃修改',
   settingsSaved: '设置已保存。',
   settingsSaveFailed: '保存设置失败。',
-  settingsUnavailable: 'imagen 设置命名空间在当前页面不可用。',
+  settingsUnavailable: '无法连接 imagen 设置命名空间。请在 ~/.dsh/settings.yaml 的 web_settings_namespaces 中加入 imagen 后刷新本页。',
   settingsLoading: '正在加载设置…',
 }
 
@@ -499,5 +499,5 @@ export function apply(ctx: ClientContext): void {
       ),
     }),
   }, ImagenCard))
-  installSettingsPage(ctx, t as (key: string) => string)
+  installPluginCard(ctx, t as (key: string) => string)
 }
