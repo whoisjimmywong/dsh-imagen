@@ -278,7 +278,7 @@ export function apply(ctx: Context, config: ImagenConfig = {}): void {
       // hard-coded in rc.6 and would otherwise answer settings-not-exposed.
       if (endpoint === IMAGEN_RPC_ENDPOINT.settingsGet) {
         try {
-          return { ok: true, value: settingsView(spec()) }
+          return { ok: true, value: await settingsView(ctx, spec()) }
         } catch (error) {
           return rpcError(error instanceof Error ? error.message : 'Failed to read settings.')
         }
@@ -288,10 +288,21 @@ export function apply(ctx: Context, config: ImagenConfig = {}): void {
         if (draft === undefined) return rpcError('A valid config object is required.')
         try {
           const resolved = resolveConfig(draft)
+          // Persist any user-provided API keys into the DSH credential store
+          // (name -> value); the value never enters settings or session data.
+          const keys = isRecord(payload.keys) ? payload.keys as Record<string, unknown> : undefined
+          if (keys !== undefined) {
+            for (const [name, value] of Object.entries(keys)) {
+              if (name.trim() === '' || typeof value !== 'string' || value.trim() === '') continue
+              const credentials = ctx.get('credentials') as { set(ref: unknown, value: string): Promise<void> } | undefined
+              if (credentials === undefined) throw new Error('The credentials service is not mounted.')
+              await credentials.set(credentialRef(name.trim()), value)
+            }
+          }
           const settings = ctx.get('settings') as { replace(ns: unknown, section: unknown): Promise<void> } | undefined
           if (settings === undefined) throw new Error('The settings service is not mounted; edit ~/.dsh/cordis.patch.yml instead.')
           await settings.replace(IMAGEN_SETTINGS_NAMESPACE, plainConfig(resolved))
-          return { ok: true, value: settingsView(spec()) }
+          return { ok: true, value: await settingsView(ctx, spec()) }
         } catch (error) {
           return rpcError(error instanceof Error ? error.message : 'Failed to save settings.')
         }
@@ -894,13 +905,24 @@ function relativePath(workspace: string, path: string): string {
   return relative(workspace, path).split(sep).join('/')
 }
 
-/** Serializable view of the resolved config for the browser settings card. */
-function settingsView(config: ResolvedImagenConfig): Record<string, unknown> {
-  const sources: Record<string, { baseUrl: string; credential: string; model?: string }> = {}
+/** Serializable view of the resolved config for the browser settings card.
+ *  Includes whether each source's credential is configured — never the value. */
+async function settingsView(ctx: Context, config: ResolvedImagenConfig): Promise<Record<string, unknown>> {
+  const credentials = ctx.get('credentials') as { describe(ref: unknown): Promise<{ configured: boolean }> } | undefined
+  const sources: Record<string, { baseUrl: string; credential: string; model?: string; credentialSet: boolean }> = {}
   for (const [name, source] of Object.entries(config.sources)) {
+    let credentialSet = false
+    if (credentials !== undefined) {
+      try {
+        credentialSet = (await credentials.describe(source.credential)).configured
+      } catch {
+        credentialSet = false
+      }
+    }
     sources[name] = {
       baseUrl: source.baseUrl,
       credential: String(source.credential),
+      credentialSet,
       ...(source.model === undefined ? {} : { model: source.model }),
     }
   }

@@ -22,7 +22,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 /** Client-side mirror of the host configuration (all fields optional). */
 export interface ImagenSettingsDraft {
-  sources?: Record<string, { baseUrl?: string; credential?: string; model?: string }>
+  sources?: Record<string, { baseUrl?: string; credential?: string; model?: string; credentialSet?: boolean }>
   defaultSource?: string
   save?: { enabled?: boolean; dir?: string; nameTemplate?: string }
   discovery?: { enabled?: boolean; extraPatterns?: string[]; cacheTtlMs?: number }
@@ -42,6 +42,10 @@ export interface SourceRow {
   baseUrl: string
   credential: string
   model: string
+  /** Whether the DSH credential for this source is already configured. */
+  credentialSet: boolean
+  /** Draft-only API key; sent to the Host on save, never stored client-side. */
+  key: string
 }
 
 type Translate = (key: string) => string
@@ -49,7 +53,7 @@ type Translate = (key: string) => string
 interface Injected {
   t: Translate
   loadConfig: () => Promise<ImagenSettingsDraft>
-  saveConfig: (config: ImagenSettingsDraft) => Promise<void>
+  saveConfig: (config: ImagenSettingsDraft, keys: Record<string, string>) => Promise<ImagenSettingsDraft>
 }
 
 type Props = PropsRuntime<'settings.plugin.item'> & Injected
@@ -63,7 +67,14 @@ function toSources(value: ImagenSettingsDraft | undefined): SourceRow[] {
   const sources = value?.sources ?? {}
   const rows: SourceRow[] = []
   for (const [name, source] of Object.entries(sources)) {
-    rows.push({ name, baseUrl: source?.baseUrl ?? '', credential: source?.credential ?? '', model: source?.model ?? '' })
+    rows.push({
+      name,
+      baseUrl: source?.baseUrl ?? '',
+      credential: source?.credential ?? '',
+      model: source?.model ?? '',
+      credentialSet: source?.credentialSet ?? false,
+      key: '',
+    })
   }
   return rows
 }
@@ -226,10 +237,11 @@ function ImagenSettingsCard({ t, loadConfig, saveConfig }: Props) {
     }
   }
 
+  const hasKeys = sourceRows.some(row => row.key.trim() !== '')
   const dirty = useMemo(
-    () => JSON.stringify(buildDraft()) !== JSON.stringify(value ?? {}),
+    () => hasKeys || JSON.stringify(buildDraft()) !== JSON.stringify(value ?? {}),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sourceRows, defaultSource, saveEnabled, saveDir, nameTemplate, discoveryEnabled, extraPatterns, defaultSize, defaultQuality, defaultFormat, defaultN, timeoutMs, maxRetries, retryBaseMs, maxConcurrent, maxImageBytes, maxReferenceBytes, value],
+    [sourceRows, defaultSource, saveEnabled, saveDir, nameTemplate, discoveryEnabled, extraPatterns, defaultSize, defaultQuality, defaultFormat, defaultN, timeoutMs, maxRetries, retryBaseMs, maxConcurrent, maxImageBytes, maxReferenceBytes, value, hasKeys],
   )
 
   const updateRow = (index: number, patch: Partial<SourceRow>): void => {
@@ -240,7 +252,17 @@ function ImagenSettingsCard({ t, loadConfig, saveConfig }: Props) {
     setBusy(true)
     setMessage(undefined)
     try {
-      await saveConfig(buildDraft())
+      const keys: Record<string, string> = {}
+      for (const row of sourceRows) {
+        const name = row.credential.trim()
+        const key = row.key.trim()
+        if (name !== '' && key !== '') keys[name] = key
+      }
+      const next = await saveConfig(buildDraft(), keys)
+      // The Host wrote the keys into DSH credentials and never returns them;
+      // refresh the configured flags and clear the draft inputs.
+      setValue(next)
+      setSourceRows(toSources(next))
       setMessage({ kind: 'ok', text: t('settingsSaved') })
     } catch (error) {
       setMessage({ kind: 'error', text: error instanceof Error ? error.message : t('settingsSaveFailed') })
@@ -287,6 +309,16 @@ function ImagenSettingsCard({ t, loadConfig, saveConfig }: Props) {
               <Field label={t('settingsSourceCredential')} hint={t('settingsCredentialHint')}>
                 <input className="dshImagenSet__input" value={row.credential} onChange={event => { updateRow(index, { credential: event.target.value }) }} placeholder="IMAGE_API_KEY" />
               </Field>
+              <Field label={t('settingsApiKey')} hint={row.credentialSet ? t('settingsKeySaved') : t('settingsKeyNotSet')}>
+                <input
+                  className="dshImagenSet__input"
+                  type="password"
+                  value={row.key}
+                  autoComplete="new-password"
+                  placeholder={row.credentialSet ? t('settingsKeySaved') : t('settingsKeyNotSet')}
+                  onChange={event => { updateRow(index, { key: event.target.value }) }}
+                />
+              </Field>
               <Field label={t('settingsSourceModel')}>
                 <input className="dshImagenSet__input" value={row.model} onChange={event => { updateRow(index, { model: event.target.value }) }} placeholder={t('settingsModelPlaceholder')} />
               </Field>
@@ -294,7 +326,7 @@ function ImagenSettingsCard({ t, loadConfig, saveConfig }: Props) {
             <button type="button" className="dshImagenSet__danger" onClick={() => { setSourceRows(rows => rows.filter((_, at) => at !== index)) }}>{t('settingsRemove')}</button>
           </div>
         ))}
-        <button type="button" className="dshImagenSet__button" onClick={() => { setSourceRows(rows => [...rows, { name: '', baseUrl: '', credential: '', model: '' }]) }}>{t('settingsAddSource')}</button>
+        <button type="button" className="dshImagenSet__button" onClick={() => { setSourceRows(rows => [...rows, { name: '', baseUrl: '', credential: '', model: '', credentialSet: false, key: '' }]) }}>{t('settingsAddSource')}</button>
         <Field label={t('settingsDefaultSource')}>
           <input className="dshImagenSet__input" value={defaultSource} onChange={event => { setDefaultSource(event.target.value) }} placeholder="myprovider" />
         </Field>
@@ -397,8 +429,10 @@ export function installPluginCard(
     if (typeof value !== 'object' || value === null) throw new Error('Host returned invalid settings')
     return value as ImagenSettingsDraft
   }
-  const saveConfig = async (config: ImagenSettingsDraft): Promise<void> => {
-    await call('imagen/settings/set', { config }, signal)
+  const saveConfig = async (config: ImagenSettingsDraft, keys: Record<string, string>): Promise<ImagenSettingsDraft> => {
+    const value = await call('imagen/settings/set', { config, keys }, signal)
+    if (typeof value !== 'object' || value === null) throw new Error('Host returned invalid settings')
+    return value as ImagenSettingsDraft
   }
   ctx.slots.inject('settings.plugin.item', function* () {
     yield ctx.slots.register({

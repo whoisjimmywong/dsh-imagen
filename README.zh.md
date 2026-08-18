@@ -34,7 +34,7 @@ dsh plugin --profile web add .
 
 ### 1. 配置 source
 
-先在 DSH 凭据管理中创建一条（如 `IMAGE_API_KEY`）存放你的 Key，然后到 **设置 → 插件配置 → imagen 卡片** 添加 source（该卡片通过插件自己的回环通道读写配置，无需任何设置白名单）。也可以直接写进 `~/.dsh/cordis.patch.yml`：
+到 **设置 → 插件配置 → imagen 卡片**（该卡片通过插件自己的回环通道读写配置，无需任何设置白名单）添加 source，并直接在 **API 密钥** 栏输入密钥——保存时密钥会自动写入 DSH 凭据库，输入框随即清空并显示"已保存，留空即不改动"（已存密钥不再回显，设置里只保留凭据名）。也可以直接写进 `~/.dsh/cordis.patch.yml`（并把密钥放进 `~/.dsh/.credentials.yaml`）：
 
 ```yaml
 - id: imagen

@@ -34,7 +34,7 @@ Restart DSH and refresh the page. The bundle patch inserts the `imagen` row auto
 
 ### 1. Configure a source
 
-Create a DSH credential (Settings → Credentials, or the CLI) named e.g. `IMAGE_API_KEY` holding your key, then add a source in **Settings → 插件配置 → the imagen card** (the card reads and writes through the plugin's own loopback channel — no settings allowlist needed). Or configure the source directly in `~/.dsh/cordis.patch.yml`:
+Open **Settings → 插件配置 → the imagen card** (the card reads and writes through the plugin's own loopback channel — no settings allowlist needed), add a source, and type the API key directly in the **API key** field — on save the key is stored into DSH credentials automatically and the field clears to "Saved. Leave empty to keep it." (the stored key never shows again; only the credential name is kept in settings). Alternatively configure the source directly in `~/.dsh/cordis.patch.yml` (and store the key in `~/.dsh/.credentials.yaml`):
 
 ```yaml
 - id: imagen
