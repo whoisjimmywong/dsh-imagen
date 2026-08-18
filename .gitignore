@@ -7,3 +7,7 @@ node_modules/
 # this plugin and never committed.
 _ref/
 _ref2/
+
+# Generated images (the plugin's workspace save directory) — user output,
+# never committed.
+generated-images/
