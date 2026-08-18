@@ -100,3 +100,39 @@ export const IMAGEN_STYLES = `
   .dshImagen__scan, .dshImagen__orb, .dshImagen__dot { animation: none !important; }
 }
 `
+
+/** Scoped styles for the Settings → imagen page. */
+export const IMAGEN_SETTINGS_STYLES = `
+.dshImagenSet__page { max-width: 760px; display: flex; flex-direction: column; gap: 14px; font-size: 13px; }
+.dshImagenSet__heading { margin: 0; font-size: 18px; font-weight: 600; }
+.dshImagenSet__intro { margin: 0; color: var(--ds-text-muted, rgba(127,127,127,.85)); }
+.dshImagenSet__group { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--ds-inline-border, rgba(127,127,127,.25)); border-radius: 10px; background: var(--ds-inline-bg, rgba(127,127,127,.05)); }
+.dshImagenSet__groupTitle { margin: 0; font-size: 14px; font-weight: 600; }
+.dshImagenSet__sourceCard { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px dashed var(--ds-inline-border, rgba(127,127,127,.35)); border-radius: 8px; }
+.dshImagenSet__sourceRow { display: flex; gap: 10px; flex-wrap: wrap; }
+.dshImagenSet__field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 180px; }
+.dshImagenSet__label { font-size: 12px; color: var(--ds-text-muted, rgba(127,127,127,.85)); }
+.dshImagenSet__hint { font-size: 11px; color: var(--ds-text-muted, rgba(127,127,127,.7)); }
+.dshImagenSet__input {
+  padding: 6px 8px; border-radius: 6px; font-size: 13px;
+  border: 1px solid var(--ds-inline-border, rgba(127,127,127,.35));
+  background: var(--ds-inline-bg, rgba(127,127,127,.08));
+  color: inherit;
+}
+.dshImagenSet__input:focus { outline: 2px solid var(--ds-accent, #7aa2f7); outline-offset: 0; }
+.dshImagenSet__check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.dshImagenSet__button {
+  align-self: flex-start; padding: 6px 14px; border-radius: 8px; font-size: 13px; cursor: pointer;
+  border: 1px solid var(--ds-inline-border, rgba(127,127,127,.35));
+  background: var(--ds-inline-bg, rgba(127,127,127,.1)); color: inherit;
+}
+.dshImagenSet__button:hover:not(:disabled) { filter: brightness(1.1); }
+.dshImagenSet__button:disabled { opacity: .5; cursor: default; }
+.dshImagenSet__danger {
+  align-self: flex-start; padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;
+  border: 1px solid rgba(220,80,80,.4); background: transparent; color: rgba(220,80,80,.9);
+}
+.dshImagenSet__actions { display: flex; align-items: center; gap: 10px; }
+.dshImagenSet__ok { color: rgba(80,190,120,.95); font-size: 12px; }
+.dshImagenSet__error { color: rgba(220,80,80,.95); font-size: 12px; }
+`

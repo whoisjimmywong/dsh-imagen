@@ -34,7 +34,7 @@ dsh plugin --profile web add .
 
 ### 1. 配置 source
 
-先在 DSH 凭据管理中创建一条（如 `IMAGE_API_KEY`）存放你的 Key，然后在 **设置 → 插件配置 → imagen** 添加 source，或直接写进 `~/.dsh/cordis.patch.yml`：
+先在 DSH 凭据管理中创建一条（如 `IMAGE_API_KEY`）存放你的 Key，然后在 **设置 → 图片生成**（本插件渲染的设置页）添加 source，或直接写进 `~/.dsh/cordis.patch.yml`：
 
 ```yaml
 - id: imagen

@@ -6,6 +6,7 @@ import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-tool/client'
+import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import { IMAGEN_RPC_CHANNEL, IMAGEN_RPC_ENDPOINT } from '../rpc.ts'
 import {
   PRESENTATION_SCHEMA,
@@ -17,7 +18,8 @@ import {
   type ImageReferenceValue,
   type ImageRefValue,
 } from '../types.ts'
-import { IMAGEN_STYLES } from './styles.ts'
+import { IMAGEN_STYLES, IMAGEN_SETTINGS_STYLES } from './styles.ts'
+import { installSettingsPage } from './settings.tsx'
 
 const NS = 'dsh.imagen' as const
 const POLL_MS = 650
@@ -41,6 +43,46 @@ const en = {
   noOutput: 'The provider did not return a usable image.',
   savedTo: 'Saved to',
   images: 'images',
+  settingsNav: 'Image generation',
+  settingsTitle: 'Image generation (dsh-imagen)',
+  settingsIntro: 'Configure the OpenAI-compatible image sources the agent may use, automatic workspace saving, model discovery, and operation limits. Secrets stay in DSH credentials — only the credential name is stored here.',
+  settingsSources: 'Sources',
+  settingsNoSources: 'No source configured yet. Add at least one source, then store its API key in DSH credentials and enter the credential name below.',
+  settingsSourceName: 'Source name',
+  settingsSourceBaseUrl: 'Base URL',
+  settingsSourceCredential: 'Credential',
+  settingsCredentialHint: 'Name of the DSH credential holding the API key (e.g. IMAGE_API_KEY).',
+  settingsSourceModel: 'Model (optional)',
+  settingsModelPlaceholder: 'auto-discover',
+  settingsRemove: 'Remove',
+  settingsAddSource: 'Add source',
+  settingsDefaultSource: 'Default source (optional)',
+  settingsSave: 'Save',
+  settingsSaveEnabled: 'Automatically save generated images to the workspace',
+  settingsSaveDir: 'Save directory',
+  settingsNameTemplate: 'Name template',
+  settingsDiscovery: 'Model discovery',
+  settingsDiscoveryEnabled: 'Discover image models via GET /v1/models',
+  settingsPatterns: 'Extra name patterns',
+  settingsPatternsHint: 'Comma-separated regexes appended to the built-in image-model matcher.',
+  settingsDefaults: 'Defaults',
+  settingsDefaultSize: 'Default size',
+  settingsDefaultQuality: 'Default quality',
+  settingsProviderDefault: 'Provider default',
+  settingsDefaultFormat: 'Output format',
+  settingsDefaultCount: 'Images per call (1-4)',
+  settingsLimits: 'Limits',
+  settingsTimeoutMs: 'Timeout (ms)',
+  settingsMaxRetries: 'Max retries',
+  settingsRetryBaseMs: 'Retry base (ms)',
+  settingsMaxConcurrent: 'Max concurrent',
+  settingsMaxImageBytes: 'Max image bytes',
+  settingsMaxReferenceBytes: 'Max reference bytes',
+  settingsDiscard: 'Discard',
+  settingsSaved: 'Settings saved.',
+  settingsSaveFailed: 'Failed to save settings.',
+  settingsUnavailable: 'The imagen settings namespace is not available from this page.',
+  settingsLoading: 'Loading settings…',
 } as const
 
 type LocaleKey = keyof typeof en
@@ -64,6 +106,46 @@ const zh: Record<LocaleKey, string> = {
   noOutput: '服务未返回可用图片。',
   savedTo: '已保存到',
   images: '张',
+  settingsNav: '图片生成',
+  settingsTitle: '图片生成（dsh-imagen）',
+  settingsIntro: '配置 Agent 可用的 OpenAI 兼容生图源、工作区自动保存、模型发现与运行边界。密钥始终存放在 DSH 凭据中——这里只保存凭据名称。',
+  settingsSources: '生图源（Sources）',
+  settingsNoSources: '尚未配置生图源。请至少添加一个源，先把 API Key 存进 DSH 凭据，再在此填写凭据名称。',
+  settingsSourceName: '源名称',
+  settingsSourceBaseUrl: 'Base URL',
+  settingsSourceCredential: '凭据',
+  settingsCredentialHint: '持有 API Key 的 DSH 凭据名称（如 IMAGE_API_KEY）。',
+  settingsSourceModel: '模型（可选）',
+  settingsModelPlaceholder: '自动发现',
+  settingsRemove: '移除',
+  settingsAddSource: '添加生图源',
+  settingsDefaultSource: '默认源（可选）',
+  settingsSave: '保存',
+  settingsSaveEnabled: '生成后自动保存图片到工作区',
+  settingsSaveDir: '保存目录',
+  settingsNameTemplate: '命名模板',
+  settingsDiscovery: '模型发现',
+  settingsDiscoveryEnabled: '通过 GET /v1/models 自动发现生图模型',
+  settingsPatterns: '额外名称模式',
+  settingsPatternsHint: '逗号分隔的正则，追加到内置生图模型匹配器之后。',
+  settingsDefaults: '默认参数',
+  settingsDefaultSize: '默认尺寸',
+  settingsDefaultQuality: '默认质量',
+  settingsProviderDefault: '厂商默认',
+  settingsDefaultFormat: '输出格式',
+  settingsDefaultCount: '每次张数（1-4）',
+  settingsLimits: '运行边界',
+  settingsTimeoutMs: '超时（毫秒）',
+  settingsMaxRetries: '最大重试',
+  settingsRetryBaseMs: '重试基数（毫秒）',
+  settingsMaxConcurrent: '最大并发',
+  settingsMaxImageBytes: '单图字节上限',
+  settingsMaxReferenceBytes: '参考图字节上限',
+  settingsDiscard: '放弃修改',
+  settingsSaved: '设置已保存。',
+  settingsSaveFailed: '保存设置失败。',
+  settingsUnavailable: 'imagen 设置命名空间在当前页面不可用。',
+  settingsLoading: '正在加载设置…',
 }
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -381,8 +463,8 @@ function decodeImage(value: unknown): { mediaType: string; width?: number; heigh
   }
 }
 
-/** Register the localized keyed tool card and its lifecycle-owned CSS. */
-export const inject = ['slots', 'locale', 'connection']
+/** Register the localized keyed tool card, the settings page, and lifecycle CSS. */
+export const inject = ['slots', 'locale', 'connection', 'settingsScope']
 
 /** Browser Cordis plugin entry. */
 export function apply(ctx: ClientContext): void {
@@ -392,7 +474,7 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => {
     const style = document.createElement('style')
     style.dataset.plugin = 'dsh-imagen'
-    style.textContent = IMAGEN_STYLES
+    style.textContent = `${IMAGEN_STYLES}\n${IMAGEN_SETTINGS_STYLES}`
     document.head.append(style)
     return () => { style.remove() }
   }, 'dsh-imagen: card styles')
@@ -417,4 +499,5 @@ export function apply(ctx: ClientContext): void {
       ),
     }),
   }, ImagenCard))
+  installSettingsPage(ctx, t as (key: string) => string)
 }
